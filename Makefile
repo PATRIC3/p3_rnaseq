@@ -1,6 +1,8 @@
 TOP_DIR = ../..
 include $(TOP_DIR)/tools/Makefile.common
 
+APP_SERVICE = app_service
+
 DEPLOY_RUNTIME ?= /kb/runtime
 TARGET ?= /kb/deployment
 
@@ -32,6 +34,12 @@ bin: $(BIN_PERL) $(BIN_SERVICE_PERL)
 deploy: deploy-all
 deploy-all: deploy-client 
 deploy-client: deploy-libs deploy-scripts deploy-docs
+
+deploy-service: deploy-libs deploy-scripts deploy-service-scripts deploy-specs
+
+deploy-specs:
+	mkdir -p $(TARGET)/services/$(APP_SERVICE)
+	rsync -arv app_specs $(TARGET)/services/$(APP_SERVICE)/.
 
 deploy-service-scripts:
 	export KB_TOP=$(TARGET); \
