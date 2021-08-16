@@ -132,7 +132,6 @@ sub process_rnaseq {
     } else {
         die "Unrecognized recipe: $recipe \n";
     }
-    print STDERR 'FINISHED RUNNING RNASEQ!!!!!'; 
     print STDERR '\@outputs = '. Dumper(\@outputs);
     
     #
