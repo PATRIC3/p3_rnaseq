@@ -33,10 +33,10 @@ exit $rc;
 sub preflight
 {
     my($app, $app_def, $raw_params, $params) = @_;
-
+    my $mem_req = check_memory_requirements($app,$params);
     my $pf = {
 	cpu => 8,
-	memory => "32G",
+	memory => $mem_req,
 	runtime => 0,
 	storage => 0,
 	is_control_task => 0,
@@ -44,11 +44,41 @@ sub preflight
     return $pf;
 }
 
-
+#check memory requirements for preflight
+#if above a certain threshold, set to 128GB
+#otherwise, set memory requirements to 32GB
+sub check_memory_requirements 
+{
+   my ($app,$params) = @_;
+   my $mem_threshold = 50000000000; #50GB 
+   my $total_mem = 0;
+   my $ws = $app->workspace;
+   #paired_end libs
+   foreach my $item (@{$params->{paired_end_libs}}) {
+      my $r1 = $ws->stat($item->{read1});
+      my $r2 = $ws->stat($item->{read2});
+      $total_mem = $total_mem + $r1->size + $r1->size;
+   }
+   #single_end libs
+   foreach my $item (@{$params->{single_end_libs}}) { 
+      my $r = $ws->stat($item->{read});
+      $total_mem = $total_mem + $r->size;
+   }
+   #bam libs
+   foreach my $item (@{$params->{bam_libs}}) {
+      my $b = $ws->stat($item->{bam});
+      $total_mem = $total_mem + $b->size;
+   }
+   #check memory requirement and return 
+   if ($total_mem >= $mem_threshold) {
+      return "128GB";     
+   } else {
+      return "32GB";
+   }
+}
 
 sub process_rnaseq {
     my ($app, $app_def, $raw_params, $params) = @_;
-
     print "Proc RNASeq ", Dumper($app_def, $raw_params, $params);
     my $time1 = `date`;
 
@@ -77,11 +107,15 @@ sub process_rnaseq {
     
     # my $tmpdir = File::Temp->newdir();
     my $tmpdir = File::Temp->newdir( CLEANUP => 1 );
+    # my $tmpdir = File::Temp->newdir( CLEANUP => 0 );
     # my $tmpdir = "/tmp/RNApubref";
     # my $tmpdir = "/tmp/RNAuser";
     system("chmod", "755", "$tmpdir");
     print STDERR "$tmpdir\n";
+    ###localize_params for regular script
+    #localize_params_local for testing: will not download files
     $params = localize_params($tmpdir, $params);
+    #$params = localize_params_local($tmpdir, $params);
     
     my @outputs;
     my $prefix = $recipe;
@@ -98,7 +132,7 @@ sub process_rnaseq {
     } else {
         die "Unrecognized recipe: $recipe \n";
     }
-    
+    print STDERR 'FINISHED RUNNING RNASEQ!!!!!'; 
     print STDERR '\@outputs = '. Dumper(\@outputs);
     
     #
@@ -159,24 +193,18 @@ sub process_rnaseq {
             print STDERR "Saving $ofile => $output_folder/$filename ...\n";
             $app->workspace->save_file_to_file("$ofile", {},"$output_folder/$filename", $type, 1);
 	}
-	else
-	{
-	    my $filename = basename($ofile);
-	    print STDERR "Output folder = $output_folder\n";
-	    print STDERR "Saving $ofile => $output_folder/$prefix\_$filename ...\n";
-	    $app->workspace->save_file_to_file("$ofile", {}, "$output_folder/$prefix\_$filename", $type, 1,
-					       (-s "$ofile" > $shock_cutoff ? 1 : 0), # use shock for larger files
-					       $global_token);
-	}
     }
     my $time2 = `date`;
+    my $outdir = "$tmpdir/Rocket";
+    save_output_files($app,$outdir);
     write_output("Start: $time1"."End:   $time2", "$tmpdir/DONE");
 }
 
 sub run_rna_rocket {
     my ($params, $tmpdir, $host, $parallel) = @_;
 
-    $parallel //= 1;
+    #$parallel //= 1;
+    $parallel //= 8;
     
     my $cwd = getcwd();
     
@@ -195,7 +223,8 @@ sub run_rna_rocket {
 	cuffmerge => {-p => $parallel},
 	hisat2 => {-p => $parallel},
 	bowtie2 => {-p => $parallel},
-	stringtie => {-p => $parallel}
+	stringtie => {-p => $parallel},
+    htseq => {-p => $parallel}
     };
     #
     # no pretty, ensure it's on one line
@@ -215,6 +244,7 @@ sub run_rna_rocket {
     my $diffexp_folder = "$outdir/.$output_name$dsuffix";
     my $diffexp_file = "$outdir/$output_name$dsuffix";
     my $ref_dir  = prepare_ref_data_rocket($ref_id, $tmpdir, $host, $host_ftp);
+    my $unit_test = defined($params->{unit_test}) ? $params->{unit_test} : undef;
     
     print "Run rna_rocket ", Dumper($exps, $labels, $tmpdir);
     
@@ -232,6 +262,9 @@ sub run_rna_rocket {
     push @cmd, ("-d", $diffexp_name);
     push @cmd, ("--jfile", $jdesc);
     push @cmd, ("--sstring", $sstring);
+    if ($unit_test) {
+        push @cmd, ("--unit_test",$params->{unit_test});
+    }
     
     #push @cmd, ("-L", join(",", map { s/^\W+//; s/\W+$//; s/\W+/_/g; $_ } @$labels)) if $labels && @$labels;
     #push @cmd, map { my @s = @$_; join(",", map { join("%", @$_) } @s) } @$exps;
@@ -243,10 +276,10 @@ sub run_rna_rocket {
     # output collection infrastructure.
     #
     my $ok = run(\@cmd);
-    if (!$ok)
-    {
-	die "Error $? running @cmd\n";
-    }
+    #if (!$ok)
+    #{
+	#die "Error $? running @cmd\n";
+    #}
     
     #    my ($rc, $out, $err) = run_cmd(\@cmd);
     #    print STDERR "STDOUT:\n$out\n";
@@ -284,15 +317,7 @@ sub run_rna_rocket {
 		for my $f (glob("$path/*$suffix"))
 		{
 		    my $base = basename($f);
-		    my $nf = "$outdir/${ref_id}/${set}_${rep}_${base}";
-		    if (rename($f, $nf))
-		    {
-			push(@outputs, [$nf, $type]);
-		    }
-		    else
-		    {
-			warn "Error renaming $f to $nf\n";
-		    }
+			push(@outputs, [$f, $type]);
 		}
 	    }
 	}
@@ -686,6 +711,11 @@ sub localize_params {
     return $params;
 }
 
+sub localize_params_local {
+    my ($tmpdir, $params) = @_;
+    return $params;
+}
+
 sub count_params_files {
     my ($params) = @_;
     my $count = 0;
@@ -762,4 +792,49 @@ sub break_fasta_lines {
 sub verify_cmd {
     my ($cmd) = @_;
     system("which $cmd >/dev/null") == 0 or die "Command not found: $cmd\n";
+}
+
+sub save_output_files
+{
+    my($app, $output) = @_;
+    
+    my %suffix_map = (
+              txt => 'txt',
+              png => 'png',
+              svg => 'svg',
+              nwk => 'nwk',
+              out => 'txt',
+              err => 'txt',
+              tsv => 'tsv',
+              csv => 'csv',
+              bam => 'bam',
+              bai => 'bai',
+              gtf => 'gff',
+              gff => 'gff',
+              _tracking => 'txt',
+              gmx => 'diffexp_input_data',
+              html => 'html');
+           
+    my @suffix_map = map { ("--map-suffix", "$_=$suffix_map{$_}") } keys %suffix_map;
+
+    if (opendir(my $dh, $output))
+    {
+    while (my $p = readdir($dh))
+    {
+        next if $p =~ /^\./;
+        
+        my @cmd = ("p3-cp", "-r", @suffix_map, "$output/$p", "ws:" . $app->result_folder);
+        print "@cmd\n";
+        my $ok = IPC::Run::run(\@cmd);
+        if (!$ok)
+        {
+        warn "Error $? copying output with @cmd\n";
+        }
+    }
+    closedir($dh);
+    }
+    else
+    {
+    warn "Output directory $output does not exist\n";
+    }
 }
