@@ -30,6 +30,9 @@ exit $rc;
 # my $temp_params = JSON::decode_json(`cat /home/fangfang/P3/dev_container/modules/app_service/test_data/rna.inp`);
 # process_rnaseq('RNASeq', undef, undef, $temp_params);
 
+# Return value: moved to global scope to work properly
+my $run_ret_val = 0;
+
 sub preflight
 {
     my($app, $app_def, $raw_params, $params) = @_;
@@ -197,6 +200,10 @@ sub process_rnaseq {
     my $outdir = "$tmpdir/Rocket";
     save_output_files($app,$outdir);
     write_output("Start: $time1"."End:   $time2", "$tmpdir/DONE");
+
+    if (!$run_ret_val) {
+	    die "Error running prok_tuxedo.py: saved any output to user's workspace\n";
+    }
 }
 
 sub run_rna_rocket {
@@ -274,11 +281,12 @@ sub run_rna_rocket {
     # Run directly with IPC::Run so that stdout/stderr can flow in realtime to the
     # output collection infrastructure.
     #
-    my $ok = run(\@cmd);
-    #if (!$ok)
-    #{
-	#die "Error $? running @cmd\n";
-    #}
+    #my $ok = run(\@cmd);
+    $run_ret_val = run(\@cmd);
+    if (!$run_ret_val)
+    {
+	    print "Error $? running @cmd\n";
+    }
     
     #    my ($rc, $out, $err) = run_cmd(\@cmd);
     #    print STDERR "STDOUT:\n$out\n";
