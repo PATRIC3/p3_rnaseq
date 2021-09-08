@@ -13,16 +13,16 @@
             "default": null,
             "type": "string"
         },
-	{
-	    "id": "contrasts",
-	    "label": "Contrast list",
-	    "required": 0,
-	    "default": null,
-	    "type": "string"
-	},
         {
-	    "id": "strand_specific",
-	    "label": "Are the reads in this study strand-specific?",
+            "id": "contrasts",
+            "label": "Contrast list",
+            "required": 0,
+            "default": null,
+            "type": "string"
+        },
+        {
+        "id": "strand_specific",
+        "label": "Are the reads in this study strand-specific?",
             "required": 0,
             "default": true,
             "type": "bool"
@@ -142,7 +142,7 @@
             "default": "RNA-Rocket",
             "desc": "Recipe used for RNAseq analysis",
             "type": "enum",
-            "enum": ["RNA-Rocket", "Rockhopper", "Host"]
+            "enum": ["RNA-Rocket", "Rockhopper", "Host", "cufflinks"]
         },
         {
             "id": "host_ftp",
@@ -167,6 +167,30 @@
             "default":null,
             "desc":"Basename for the generated output files. Defaults to the basename of the input data.",
             "type":"wsid"
+        },
+        {
+            "id":"feature_count",
+            "label":"feature quantification",
+            "required": 0,
+            "default":"htseq",
+            "desc":"temporary until recipe names are finalized: switch between htseq, stringtie, and cufflinks",
+            "type":"string"
+        },
+        {
+            "id":"unit_test",
+            "label":"Unit Test Path",
+            "required":0,
+            "default": null,
+            "desc": "Path to the json file used for unit testing",
+            "type":"string"
+        },
+        {
+            "id":"skip_sampling",
+            "label":"Skip Sampling",
+            "required":0,
+            "default":null,
+            "desc":"flag to skip the sampling step in alignment.py",
+            "type":"string"
         }
     ]
 }
