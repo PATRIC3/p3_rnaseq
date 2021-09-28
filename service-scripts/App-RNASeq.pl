@@ -830,6 +830,9 @@ sub save_output_files
     {
         next if $p =~ /^\./;
         next if $p =~ /\.fna\z/;  
+        next if $p =~ /\.fastq\z/;
+        next if $p =~ /\.fq\z/;
+
         my @cmd = ("p3-cp", "-r", @suffix_map, "$output/$p", "ws:" . $app->result_folder);
         print "@cmd\n";
         my $ok = IPC::Run::run(\@cmd);
