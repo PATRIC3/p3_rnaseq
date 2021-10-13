@@ -74,8 +74,9 @@ sub check_memory_requirements
    }
    foreach my $item (@{$params->{srr_libs}}) {
       my $srr_id = $item->{srr_accession};
-      my $sra_meta_file = "/tmp/m_" . $srr_id;
-      my @p3_cmd = ("p3-sra", "--id",$srr_id,"--metaonly","--metadata-file",$sra_meta_file);
+      my $sra_meta_file = File::Temp->new();
+      close($sra_meta_file);
+      my @p3_cmd = ("p3-sra", "--id",$srr_id,"--metaonly","--metadata-file","$sra_meta_file");
       my $p3_ok = IPC::Run::run(\@p3_cmd);
       if (!$p3_ok)
       {
