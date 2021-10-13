@@ -72,6 +72,28 @@ sub check_memory_requirements
       my $b = $ws->stat($item->{bam});
       $total_mem = $total_mem + $b->size;
    }
+   foreach my $item (@{$params->{srr_libs}}) {
+      my $srr_id = $item->{srr_accession};
+      my $sra_meta_file = File::Temp->new();
+      close($sra_meta_file);
+      my @p3_cmd = ("p3-sra", "--id",$srr_id,"--metaonly","--metadata-file","$sra_meta_file");
+      my $p3_ok = IPC::Run::run(\@p3_cmd);
+      if (!$p3_ok)
+      {
+         warn "Error $? getting sra metadata with @p3_cmd\n";
+      }
+      my $txt = read_file($sra_meta_file);
+      my $data;
+      eval {
+         $data = decode_json($txt);
+      }; 
+      if ($@) {
+        warn "Parse error: $@";
+      }
+      my $metadata = $data->[0];
+      $total_mem = $total_mem + $metadata->{size};
+      unlink($sra_meta_file) or die "Can't unlink $sra_meta_file: $!";
+   }
    #check memory requirement and return 
    if ($total_mem >= $mem_threshold) {
       return "128GB";     
@@ -125,7 +147,7 @@ sub process_rnaseq {
     my $host = 0;
     if ($recipe eq 'Rockhopper') {
         @outputs = run_rockhopper($params, $tmpdir);
-    } elsif ($recipe eq 'Tuxedo' || $recipe eq 'RNA-Rocket' || $recipe eq 'cufflinks') {
+    } elsif ($recipe eq 'Tuxedo' || $recipe eq 'RNA-Rocket') {
         @outputs = run_rna_rocket($params, $tmpdir, $host, $parallel);
         $prefix = 'Tuxedo';
     } elsif ($recipe eq 'Host') {
@@ -830,6 +852,9 @@ sub save_output_files
     {
         next if $p =~ /^\./;
         next if $p =~ /\.fna\z/;  
+        next if $p =~ /\.fastq\z/;
+        next if $p =~ /\.fq\z/;
+
         my @cmd = ("p3-cp", "-r", @suffix_map, "$output/$p", "ws:" . $app->result_folder);
         print "@cmd\n";
         my $ok = IPC::Run::run(\@cmd);
