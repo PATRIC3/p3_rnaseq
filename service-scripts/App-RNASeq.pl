@@ -53,7 +53,7 @@ sub preflight
 sub check_memory_requirements 
 {
    my ($app,$params) = @_;
-   my $mem_threshold = 50000000000; #50GB 
+   my $mem_threshold = 50_000_000_000; #50GB 
    my $total_mem = 0;
    my $ws = $app->workspace;
    #paired_end libs
@@ -82,7 +82,7 @@ sub check_memory_requirements
       {
          warn "Error $? getting sra metadata with @p3_cmd\n";
       }
-      my $txt = read_file($sra_meta_file);
+      my $txt = read_file("$sra_meta_file");
       my $data;
       eval {
          $data = decode_json($txt);
@@ -91,9 +91,30 @@ sub check_memory_requirements
         warn "Parse error: $@";
       }
       my $metadata = $data->[0];
+      my($size, $bases, $n_reads) = @$metadata{qw(size bases n_reads)};
+      if ($bases && $n_reads)
+      {
+	  #
+	  # Estimate size by bases * 2 (for the quality line) * number of reads (1 or 2 for SE / PE).
+	  #
+	  $total_mem += $bases * $n_reads * 2;
+      }
+      elsif ($size)
+      {
+	  #
+	  # Estimate size by multipling size by 4 since it is a compressed file size.
+	  #
+	  $total_mem += $size * 8;
+      }
+      else
+      {
+	  # Otherwise, call it a gigabyte.
+	  $total_mem += 1_000_000_000;
+      }
+      
       $total_mem = $total_mem + $metadata->{size};
-      unlink($sra_meta_file) or die "Can't unlink $sra_meta_file: $!";
    }
+print "mem=$total_mem $mem_threshold\n";
    #check memory requirement and return 
    if ($total_mem >= $mem_threshold) {
       return "128GB";     
