@@ -91,8 +91,12 @@ sub check_memory_requirements
         warn "Parse error: $@";
       }
       my $metadata = $data->[0];
-      my($size, $bases, $n_reads) = @$metadata{qw(size bases n_reads)};
-      if ($bases && $n_reads)
+      my($size, $bases, $n_reads, $total_spots, $read_length) = @$metadata{qw(size bases n_reads total_spots read_length)};
+      if ($n_reads && $total_spots && $read_length)
+      {
+	  $total_mem += $total_spots * ($read_length  + 50) * 2 * $n_reads;
+      }
+      elsif ($bases && $n_reads)
       {
 	  #
 	  # Estimate size by bases * 2 (for the quality line) * number of reads (1 or 2 for SE / PE).
@@ -102,7 +106,7 @@ sub check_memory_requirements
       elsif ($size)
       {
 	  #
-	  # Estimate size by multipling size by 4 since it is a compressed file size.
+	  # Estimate size by multipling size by 8 since it is a compressed file size.
 	  #
 	  $total_mem += $size * 8;
       }
