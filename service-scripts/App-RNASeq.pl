@@ -147,7 +147,7 @@ sub process_rnaseq {
     my $host = 0;
     if ($recipe eq 'Rockhopper') {
         @outputs = run_rockhopper($params, $tmpdir);
-    } elsif ($recipe eq 'Tuxedo' || $recipe eq 'RNA-Rocket') {
+    } elsif ($recipe eq 'Tuxedo' || $recipe eq 'RNA-Rocket' || $recipe eq 'HTSeq-DESeq') {
         @outputs = run_rna_rocket($params, $tmpdir, $host, $parallel);
         $prefix = 'Tuxedo';
     } elsif ($recipe eq 'Host') {
