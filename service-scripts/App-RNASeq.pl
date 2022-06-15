@@ -120,7 +120,7 @@ sub check_memory_requirements
    }
 print "mem=$total_mem $mem_threshold\n";
    #check memory requirement and return 
-   if ($total_mem >= $mem_threshold) {
+   if ($total_mem >= $mem_threshold || $params->{recipe} eq 'Host') {
       return "128GB";     
    } else {
       return "32GB";
