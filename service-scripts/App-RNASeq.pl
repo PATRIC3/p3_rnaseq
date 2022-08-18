@@ -36,12 +36,12 @@ my $run_ret_val = 0;
 sub preflight
 {
     my($app, $app_def, $raw_params, $params) = @_;
-    my $mem_req = check_memory_requirements($app,$params);
+    my($storage_req, $mem_req) = check_memory_requirements($app,$params);
     my $pf = {
 	cpu => 8,
 	memory => $mem_req,
-	runtime => 0,
-	storage => 0,
+	runtime => ($storage_req < 5_000_000_000) ? 10 * 3600 :  2 * 86400,
+	storage => $storage_req,
 	is_control_task => 0,
     };
     return $pf;
@@ -118,13 +118,27 @@ sub check_memory_requirements
       
       $total_mem = $total_mem + $metadata->{size};
    }
-print "mem=$total_mem $mem_threshold\n";
-   #check memory requirement and return 
-   if ($total_mem >= $mem_threshold || $params->{recipe} eq 'Host') {
-      return "128GB";     
-   } else {
-      return "32GB";
+   print STDERR "mem=$total_mem $mem_threshold\n";
+   #check memory requirement and return
+
+   my $mem_req;
+
+   if ($params->{recipe} eq 'Host')
+   {
+       $mem_req = "48G";
    }
+   else
+   {
+       $mem_req = "16G";
+   }
+
+   return ($total_mem, $mem_req);
+
+#   if ($total_mem >= $mem_threshold || $params->{recipe} eq 'Host') {
+#      return "128GB";     
+#   } else {
+#      return "32GB";
+#   }
 }
 
 sub process_rnaseq {
